@@ -446,92 +446,254 @@ void Pipeline<p, P, flags>::rasterize_triangle(
 	//  same code paths. Be aware, however, that all of them need to remain working!
 	//  (e.g., if you break Flat while implementing Correct, you won't get points
 	//   for Flat.)
+	Vec3 const& a = va.fb_position;
+	Vec3 const& b = vb.fb_position;
+	Vec3 const& c = vc.fb_position;
+
+	float area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+	if (area == 0.0f) return;
+
+	Vec2 edge0 = Vec2(b.x - a.x, b.y - a.y);
+	Vec2 edge1 = Vec2(c.x - b.x, c.y - b.y);
+	Vec2 edge2 = Vec2(a.x - c.x, a.y - c.y);
+	auto is_start_edge = [](Vec2 const& e) -> bool {
+		return (e.y > 0.0f) || (e.y == 0.0f && e.x > 0.0f);
+	};
+	bool is_start_edge0 = is_start_edge(edge0);
+	bool is_start_edge1 = is_start_edge(edge1);
+	bool is_start_edge2 = is_start_edge(edge2);
+
+	float min_x = std::min({a.x, b.x, c.x});
+	float max_x = std::max({a.x, b.x, c.x});
+	float min_y = std::min({a.y, b.y, c.y});
+	float max_y = std::max({a.y, b.y, c.y});
+
+	int32_t min_ix = static_cast<int32_t>(std::floor(min_x));
+	int32_t max_ix = static_cast<int32_t>(std::ceil(max_x));
+	int32_t min_iy = static_cast<int32_t>(std::floor(min_y));
+	int32_t max_iy = static_cast<int32_t>(std::ceil(max_y));
+
 	if constexpr ((flags & PipelineMask_Interp) == Pipeline_Interp_Flat) {
 		// A1T3: flat triangles
-		Vec3 const& a = va.fb_position;
-		Vec3 const& b = vb.fb_position;
-		Vec3 const& c = vc.fb_position;
+		for (int32_t iy = min_iy; iy <= max_iy; ++iy) {
+			for (int32_t ix = min_ix; ix <= max_ix; ++ix) {
+				Vec2 q = Vec2(ix + 0.5f, iy + 0.5f);
 
-		float area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-        if (area == 0.0f) return;
+				float w0 = (b.x - a.x) * (q.y - a.y) - (b.y - a.y) * (q.x - a.x);
+				float w1 = (c.x - b.x) * (q.y - b.y) - (c.y - b.y) * (q.x - b.x);
+				float w2 = (a.x - c.x) * (q.y - c.y) - (a.y - c.y) * (q.x - c.x);
 
-        Vec2 edge0 = Vec2(b.x - a.x, b.y - a.y);
-        Vec2 edge1 = Vec2(c.x - b.x, c.y - b.y);
-        Vec2 edge2 = Vec2(a.x - c.x, a.y - c.y);
-		 auto is_start_edge = [](Vec2 const& e) -> bool {
-            return (e.y > 0.0f) || (e.y == 0.0f && e.x > 0.0f);
-        };
-        bool is_start_edge0 = is_start_edge(edge0);
-        bool is_start_edge1 = is_start_edge(edge1);
-        bool is_start_edge2 = is_start_edge(edge2);
+				bool inside;
+				if (area > 0.0f) {
+					inside = (w0 >= 0) && (w1 >= 0) && (w2 >= 0);
+					if (w0 == 0.0f) inside = inside && is_start_edge0;
+					if (w1 == 0.0f) inside = inside && is_start_edge1;
+					if (w2 == 0.0f) inside = inside && is_start_edge2;
+				} else {
+					inside = (w0 <= 0) && (w1 <= 0) && (w2 <= 0);
+					if (w0 == 0.0f) inside = inside && is_start_edge0;
+					if (w1 == 0.0f) inside = inside && is_start_edge1;
+					if (w2 == 0.0f) inside = inside && is_start_edge2;
+				}
 
-        float min_x = std::min({a.x, b.x, c.x});
-        float max_x = std::max({a.x, b.x, c.x});
-        float min_y = std::min({a.y, b.y, c.y});
-        float max_y = std::max({a.y, b.y, c.y});
+				if (!inside) continue;
 
-        int32_t min_ix = static_cast<int32_t>(std::floor(min_x));
-        int32_t max_ix = static_cast<int32_t>(std::ceil(max_x));
-        int32_t min_iy = static_cast<int32_t>(std::floor(min_y));
-        int32_t max_iy = static_cast<int32_t>(std::ceil(max_y));
+				float bary0 = w1 / area;
+				float bary1 = w2 / area;
+				float bary2 = w0 / area;
+				float z = bary0 * a.z + bary1 * b.z + bary2 * c.z;
 
-        for (int32_t iy = min_iy; iy <= max_iy; ++iy) {
-            for (int32_t ix = min_ix; ix <= max_ix; ++ix) {
-                Vec2 q=Vec2(ix + 0.5f, iy + 0.5f);
+				Fragment frag;
+				frag.fb_position.x = q.x;
+				frag.fb_position.y = q.y;
+				frag.fb_position.z = z;
+				frag.attributes = va.attributes;
 
-                float w0 = (b.x - a.x) * (q.y - a.y) - (b.y - a.y) * (q.x - a.x);
-                float w1 = (c.x - b.x) * (q.y - b.y) - (c.y - b.y) * (q.x - b.x);
-                float w2 = (a.x - c.x) * (q.y - c.y) - (a.y - c.y) * (q.x - c.x);
+				for (auto& deriv : frag.derivatives) {
+					deriv.x = 0.0f;
+					deriv.y = 0.0f;
+				}
 
-                bool inside;
-                if (area > 0.0f) {
-                    inside = (w0 >= 0) && (w1 >= 0) && (w2 >= 0);
-                    if (w0 == 0.0f) inside = inside && is_start_edge0;
-                    if (w1 == 0.0f) inside = inside && is_start_edge1;
-                    if (w2 == 0.0f) inside = inside && is_start_edge2;
-                } else {
-                    inside = (w0 <= 0) && (w1 <= 0) && (w2 <= 0);
-                    if (w0 == 0.0f) inside = inside && is_start_edge0;
-                    if (w1 == 0.0f) inside = inside && is_start_edge1;
-                    if (w2 == 0.0f) inside = inside && is_start_edge2;
-                }
-
-                if (!inside) continue;
-
-                float bary0 = w1 / area;
-                float bary1 = w2 / area;
-                float bary2 = w0 / area;
-                float z = bary0 * a.z + bary1 * b.z + bary2 * c.z;
-
-                Fragment frag;
-                frag.fb_position.x = q.x;
-                frag.fb_position.y = q.y;
-                frag.fb_position.z = z;
-                frag.attributes = va.attributes;
-
-                for (auto& deriv : frag.derivatives) {
-                    deriv.x = 0.0f;
-                    deriv.y = 0.0f;
-                }
-
-                emit_fragment(frag);
-            }
+				emit_fragment(frag);
+			}
 		}
-
 	} else if constexpr ((flags & PipelineMask_Interp) == Pipeline_Interp_Smooth) {
 		// A1T5: screen-space smooth triangles
-		// TODO: rasterize triangle (see block comment above this function).
+		const auto& attr_a = va.attributes;
+		const auto& attr_b = vb.attributes;
+		const auto& attr_c = vc.attributes;
+		size_t n_attr = attr_a.size();
 
-		// As a placeholder, here's code that calls the Flat interpolation version of the function:
-		//(remove this and replace it with a real solution)
-		Pipeline<PrimitiveType::Lines, P, (flags & ~PipelineMask_Interp) | Pipeline_Interp_Flat>::rasterize_triangle(va, vb, vc, emit_fragment);
+		for (int32_t iy = min_iy; iy <= max_iy; ++iy) {
+			for (int32_t ix = min_ix; ix <= max_ix; ++ix) {
+				Vec2 q = Vec2(ix + 0.5f, iy + 0.5f);
+
+				float w0 = (b.x - a.x) * (q.y - a.y) - (b.y - a.y) * (q.x - a.x);
+				float w1 = (c.x - b.x) * (q.y - b.y) - (c.y - b.y) * (q.x - b.x);
+				float w2 = (a.x - c.x) * (q.y - c.y) - (a.y - c.y) * (q.x - c.x);
+
+				bool inside;
+				if (area > 0.0f) {
+					inside = (w0 >= 0) && (w1 >= 0) && (w2 >= 0);
+					if (w0 == 0.0f) inside = inside && is_start_edge0;
+					if (w1 == 0.0f) inside = inside && is_start_edge1;
+					if (w2 == 0.0f) inside = inside && is_start_edge2;
+				} else {
+					inside = (w0 <= 0) && (w1 <= 0) && (w2 <= 0);
+					if (w0 == 0.0f) inside = inside && is_start_edge0;
+					if (w1 == 0.0f) inside = inside && is_start_edge1;
+					if (w2 == 0.0f) inside = inside && is_start_edge2;
+				}
+
+				if (!inside) continue;
+
+				float bary0 = w1 / area;
+				float bary1 = w2 / area;
+				float bary2 = w0 / area;
+				float z = bary0 * a.z + bary1 * b.z + bary2 * c.z;
+
+				Fragment frag;
+				frag.fb_position.x = q.x;
+				frag.fb_position.y = q.y;
+				frag.fb_position.z = z;
+
+				// Interpolate attributes linearly in screen space
+				for (size_t i = 0; i < n_attr; ++i) {
+					frag.attributes[i] = attr_a[i] * bary0 + attr_b[i] * bary1 + attr_c[i] * bary2;
+				}
+
+				// Compute derivatives numerically using forward differences
+				for (size_t i = 0; i < frag.derivatives.size(); ++i) {
+					// d/dx
+					Vec2 qx = Vec2(q.x + 1.0f, q.y);
+					float w0x = (b.x - a.x) * (qx.y - a.y) - (b.y - a.y) * (qx.x - a.x);
+					float w1x = (c.x - b.x) * (qx.y - b.y) - (c.y - b.y) * (qx.x - b.x);
+					float w2x = (a.x - c.x) * (qx.y - c.y) - (a.y - c.y) * (qx.x - c.x);
+					float bary0x = w1x / area;
+					float bary1x = w2x / area;
+					float bary2x = w0x / area;
+					auto attr_x = attr_a[i] * bary0x + attr_b[i] * bary1x + attr_c[i] * bary2x;
+
+					// d/dy
+					Vec2 qy = Vec2(q.x, q.y + 1.0f);
+					float w0y = (b.x - a.x) * (qy.y - a.y) - (b.y - a.y) * (qy.x - a.x);
+					float w1y = (c.x - b.x) * (qy.y - b.y) - (c.y - b.y) * (qy.x - b.x);
+					float w2y = (a.x - c.x) * (qy.y - c.y) - (a.y - c.y) * (qy.x - c.x);
+					float bary0y = w1y / area;
+					float bary1y = w2y / area;
+					float bary2y = w0y / area;
+					auto attr_y = attr_a[i] * bary0y + attr_b[i] * bary1y + attr_c[i] * bary2y;
+
+					frag.derivatives[i].x = attr_x - frag.attributes[i];
+					frag.derivatives[i].y = attr_y - frag.attributes[i];
+				}
+
+				emit_fragment(frag);
+			}
+		}
 	} else if constexpr ((flags & PipelineMask_Interp) == Pipeline_Interp_Correct) {
 		// A1T5: perspective correct triangles
-		// TODO: rasterize triangle (block comment above this function).
+		const auto& attr_a = va.attributes;
+		const auto& attr_b = vb.attributes;
+		const auto& attr_c = vc.attributes;
+		size_t n_attr = attr_a.size();
 
-		// As a placeholder, here's code that calls the Screen-space interpolation function:
-		//(remove this and replace it with a real solution)
-		Pipeline<PrimitiveType::Lines, P, (flags & ~PipelineMask_Interp) | Pipeline_Interp_Smooth>::rasterize_triangle(va, vb, vc, emit_fragment);
+		float inv_w_a = va.inv_w;
+		float inv_w_b = vb.inv_w;
+		float inv_w_c = vc.inv_w;
+
+		for (int32_t iy = min_iy; iy <= max_iy; ++iy) {
+			for (int32_t ix = min_ix; ix <= max_ix; ++ix) {
+				Vec2 q = Vec2(ix + 0.5f, iy + 0.5f);
+
+				float w0 = (b.x - a.x) * (q.y - a.y) - (b.y - a.y) * (q.x - a.x);
+				float w1 = (c.x - b.x) * (q.y - b.y) - (c.y - b.y) * (q.x - b.x);
+				float w2 = (a.x - c.x) * (q.y - c.y) - (a.y - c.y) * (q.x - c.x);
+
+				bool inside;
+				if (area > 0.0f) {
+					inside = (w0 >= 0) && (w1 >= 0) && (w2 >= 0);
+					if (w0 == 0.0f) inside = inside && is_start_edge0;
+					if (w1 == 0.0f) inside = inside && is_start_edge1;
+					if (w2 == 0.0f) inside = inside && is_start_edge2;
+				} else {
+					inside = (w0 <= 0) && (w1 <= 0) && (w2 <= 0);
+					if (w0 == 0.0f) inside = inside && is_start_edge0;
+					if (w1 == 0.0f) inside = inside && is_start_edge1;
+					if (w2 == 0.0f) inside = inside && is_start_edge2;
+				}
+
+				if (!inside) continue;
+
+				float bary0 = w1 / area;
+				float bary1 = w2 / area;
+				float bary2 = w0 / area;
+				float z = bary0 * a.z + bary1 * b.z + bary2 * c.z;
+
+				// Perspective-correct barycentrics
+				float wa = bary0 * inv_w_a;
+				float wb = bary1 * inv_w_b;
+				float wc = bary2 * inv_w_c;
+				float sum_w = wa + wb + wc;
+				if (sum_w == 0.0f) continue;
+				wa /= sum_w;
+				wb /= sum_w;
+				wc /= sum_w;
+
+				Fragment frag;
+				frag.fb_position.x = q.x;
+				frag.fb_position.y = q.y;
+				frag.fb_position.z = z;
+
+				for (size_t i = 0; i < n_attr; ++i) {
+					frag.attributes[i] = attr_a[i] * wa + attr_b[i] * wb + attr_c[i] * wc;
+				}
+
+				// Compute derivatives numerically using forward differences
+				for (size_t i = 0; i < frag.derivatives.size(); ++i) {
+					// d/dx
+					Vec2 qx = Vec2(q.x + 1.0f, q.y);
+					float w0x = (b.x - a.x) * (qx.y - a.y) - (b.y - a.y) * (qx.x - a.x);
+					float w1x = (c.x - b.x) * (qx.y - b.y) - (c.y - b.y) * (qx.x - b.x);
+					float w2x = (a.x - c.x) * (qx.y - c.y) - (a.y - c.y) * (qx.x - c.x);
+					float bary0x = w1x / area;
+					float bary1x = w2x / area;
+					float bary2x = w0x / area;
+					float wa_x = bary0x * inv_w_a;
+					float wb_x = bary1x * inv_w_b;
+					float wc_x = bary2x * inv_w_c;
+					float sum_wx = wa_x + wb_x + wc_x;
+					if (sum_wx == 0.0f) sum_wx = 1.0f;
+					wa_x /= sum_wx;
+					wb_x /= sum_wx;
+					wc_x /= sum_wx;
+					auto attr_x = attr_a[i] * wa_x + attr_b[i] * wb_x + attr_c[i] * wc_x;
+
+					// d/dy
+					Vec2 qy = Vec2(q.x, q.y + 1.0f);
+					float w0y = (b.x - a.x) * (qy.y - a.y) - (b.y - a.y) * (qy.x - a.x);
+					float w1y = (c.x - b.x) * (qy.y - b.y) - (c.y - b.y) * (qy.x - b.x);
+					float w2y = (a.x - c.x) * (qy.y - c.y) - (a.y - c.y) * (qy.x - c.x);
+					float bary0y = w1y / area;
+					float bary1y = w2y / area;
+					float bary2y = w0y / area;
+					float wa_y = bary0y * inv_w_a;
+					float wb_y = bary1y * inv_w_b;
+					float wc_y = bary2y * inv_w_c;
+					float sum_wy = wa_y + wb_y + wc_y;
+					if (sum_wy == 0.0f) sum_wy = 1.0f;
+					wa_y /= sum_wy;
+					wb_y /= sum_wy;
+					wc_y /= sum_wy;
+					auto attr_y = attr_a[i] * wa_y + attr_b[i] * wb_y + attr_c[i] * wc_y;
+
+					frag.derivatives[i].x = attr_x - frag.attributes[i];
+					frag.derivatives[i].y = attr_y - frag.attributes[i];
+				}
+
+				emit_fragment(frag);
+			}
+		}
 	}
 }
 
