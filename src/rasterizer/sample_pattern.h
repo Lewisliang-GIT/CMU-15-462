@@ -28,6 +28,6 @@ struct SamplePattern {
 	// 		 preventing new patterns from being declared outside of all_patterns().
 // private:
 	// you really shouldn't be constructing 'em on your own, but...
-	SamplePattern(uint32_t, std::string const&, std::vector<Vec3> const&);
+	SamplePattern(uint32_t, std::string const &, std::vector<Vec3> const &);
 	// SamplePattern(SamplePattern const &) = delete; //these are global constants and shouldn't be copied
 };

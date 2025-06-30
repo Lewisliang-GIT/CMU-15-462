@@ -924,7 +924,7 @@ x : src/rasterizer/rasterizer.cpp src/rasterizer/rasterizer.h \
   src/rasterizer/../scene/shape.h src/rasterizer/../scene/skeleton.h \
   src/rasterizer/../scene/transform.h src/rasterizer/../util/timer.h \
   src/rasterizer/framebuffer.h src/rasterizer/../lib/spectrum.h \
-  src/rasterizer/pipeline.h src/rasterizer/../lib/vec2.h \
-  src/rasterizer/../lib/vec3.h src/rasterizer/../lib/vec4.h \
-  src/rasterizer/programs.h src/rasterizer/../lib/mathlib.h \
-  src/rasterizer/sample_pattern.h
+  src/rasterizer/sample_pattern.h src/rasterizer/pipeline.h \
+  src/rasterizer/../lib/vec2.h src/rasterizer/../lib/vec3.h \
+  src/rasterizer/../lib/vec4.h src/rasterizer/programs.h \
+  src/rasterizer/../lib/mathlib.h

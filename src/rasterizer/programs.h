@@ -116,14 +116,18 @@ struct Lambertian {
 
 		//-----
 		// A1T6: lod
-		// TODO: compute mip-map level based on size of sample as estimated from derivatives:
-
-		// Read section 3.8.11 of glspec33.core.pdf to understand how to compute this level
-		//  --> 'lod' is \lambda_base from equation (3.17)
-		// reading onward, you will discover that \rho can be computed in a number of ways
-		//  it is up to you to select one that makes sense in this context
-
-		float lod = 0.0f; //<-- replace this line
+		// Compute mip-map level based on size of sample as estimated from derivatives:
+		// See OpenGL spec 3.8.11, eqn (3.17)
+		// rho = max( length( d(u,v)/dx * wh ), length( d(u,v)/dy * wh ) )
+		// lod = log2(rho)
+		float dudx = fdx_texcoord.x * wh.x;
+		float dvdx = fdx_texcoord.y * wh.y;
+		float dudy = fdy_texcoord.x * wh.x;
+		float dvdy = fdy_texcoord.y * wh.y;
+		float len_x = std::sqrt(dudx * dudx + dvdx * dvdx);
+		float len_y = std::sqrt(dudy * dudy + dvdy * dvdy);
+		float rho = std::max(len_x, len_y);
+		float lod = std::log2(std::max(rho, 1e-8f));
 		//-----
 
 		Vec3 normal = fa_normal.unit();

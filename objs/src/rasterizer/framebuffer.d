@@ -785,7 +785,7 @@ x : src/rasterizer/framebuffer.cpp src/rasterizer/framebuffer.h \
   /opt/homebrew/Cellar/llvm/20.1.7/bin/../include/c++/v1/print \
   /Library/Developer/CommandLineTools/SDKs/MacOSX15.sdk/usr/include/unistd.h \
   src/rasterizer/../lib/log.h src/rasterizer/../lib/vec2.h \
-  src/rasterizer/../util/hdr_image.h \
+  src/rasterizer/sample_pattern.h src/rasterizer/../util/hdr_image.h \
   src/rasterizer/../util/../lib/spectrum.h \
   src/rasterizer/../util/../platform/gl.h \
   src/rasterizer/../util/../platform/../lib/mathlib.h \
@@ -810,5 +810,4 @@ x : src/rasterizer/framebuffer.cpp src/rasterizer/framebuffer.h \
   /opt/homebrew/Cellar/llvm/20.1.7/lib/clang/20/include/inttypes.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX15.sdk/usr/include/inttypes.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX15.sdk/usr/include/_inttypes.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX15.sdk/usr/include/xlocale/_inttypes.h \
-  src/rasterizer/sample_pattern.h
+  /Library/Developer/CommandLineTools/SDKs/MacOSX15.sdk/usr/include/xlocale/_inttypes.h

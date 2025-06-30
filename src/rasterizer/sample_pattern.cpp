@@ -19,20 +19,19 @@ std::vector<SamplePattern> const& SamplePattern::all_patterns() {
 
 	// A1T7: sample pattern
 	auto CreateYourOwnSamplePattern = []() {
-		// TODO: Create your own Sample Pattern
-		// Make any (literally any) SamplePattern that isn't one of the existing ones provided:
-		// ("Center", "Grid 2x2", "Grid 4x4", "Grid 8x8").
-		//
-		// In your writeup, explain what your SamplePattern does and provide reasoning on what
-		// scenarios your SamplePattern would do well in vs do horribly in. The more complicated
-		// your SamplePattern is + more detailed your writeup is (such as with images or models for
-		// comparisons of these scenarios), the more extra credit can be awarded (no limit).
+		// Custom Sample Pattern: 3-point triangle pattern
+		// This pattern places three samples in a triangle within the pixel.
+		// It can help capture diagonal edges better than a grid in some cases,
+		// but may perform poorly for axis-aligned features.
 
-		// Please don't change the name or id
 		const uint32_t id = 0;
-		const std::string name = "Custom Sample Pattern";
-		// This will cause it to segfault when used, so be sure to change it!
-		std::vector<Vec3> centers_and_weights = {};
+		const std::string name = "Triangle 3-Sample";
+		std::vector<Vec3> centers_and_weights = {
+			// Each sample has equal weight (1/3)
+			Vec3{0.25f, 0.25f, 1.0f / 3.0f},
+			Vec3{0.75f, 0.25f, 1.0f / 3.0f},
+			Vec3{0.5f, 0.75f, 1.0f / 3.0f}
+		};
 		return SamplePattern(id, name, centers_and_weights);
 	};
 	static std::vector<SamplePattern> all = [&]() {

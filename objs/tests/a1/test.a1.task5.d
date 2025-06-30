@@ -813,7 +813,7 @@ x : tests/a1/test.a1.task5.cpp src/test.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX15.sdk/usr/include/inttypes.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX15.sdk/usr/include/_inttypes.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX15.sdk/usr/include/xlocale/_inttypes.h \
-  src/rasterizer/framebuffer.h \
+  src/rasterizer/framebuffer.h src/rasterizer/sample_pattern.h \
   /opt/homebrew/Cellar/llvm/20.1.7/bin/../include/c++/v1/iomanip \
   /opt/homebrew/Cellar/llvm/20.1.7/bin/../include/c++/v1/istream \
   /opt/homebrew/Cellar/llvm/20.1.7/bin/../include/c++/v1/iostream
