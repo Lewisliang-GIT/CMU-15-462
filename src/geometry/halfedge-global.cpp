@@ -12,8 +12,72 @@
  * Works on all valid meshes.
  */
 void Halfedge_Mesh::triangulate() {
-	//A2G1: triangulation
-	
+    //A2G1: triangulation
+    std::vector<FaceRef> faces_to_triangulate;
+    for (FaceRef f = faces.begin(); f != faces.end(); ++f) {
+        if (f->boundary) continue;
+        // Only triangulate faces with more than 3 sides
+        HalfedgeRef h = f->halfedge;
+        int count = 1;
+        HalfedgeRef temp = h->next;
+        while (temp != h) {
+            count++;
+            temp = temp->next;
+        }
+        if (count > 3) faces_to_triangulate.push_back(f);
+    }
+
+    for (FaceRef f : faces_to_triangulate) {
+        if (f->boundary) continue;
+        // Collect all halfedges of the face
+        std::vector<HalfedgeRef> face_halfedges;
+        HalfedgeRef h = f->halfedge;
+        do {
+            face_halfedges.push_back(h);
+            h = h->next;
+        } while (h != f->halfedge);
+        size_t n = face_halfedges.size();
+        // Triangulate by creating n-3 triangles
+        for (size_t i = 1; i < n - 1; ++i) {
+            // Create a new face
+            FaceRef new_face = emplace_face(false);
+            // Create a new edge and two new halfedges for the diagonal
+            EdgeRef diag_edge = emplace_edge(false);
+            HalfedgeRef h1 = emplace_halfedge();
+            HalfedgeRef h2 = emplace_halfedge();
+            // Set up the diagonal halfedges
+            h1->twin = h2;
+            h2->twin = h1;
+            h1->edge = h2->edge = diag_edge;
+            diag_edge->halfedge = h1;
+            // Set up the triangle's halfedges
+            HalfedgeRef a = face_halfedges[0];
+            HalfedgeRef b = face_halfedges[i];
+            HalfedgeRef c = face_halfedges[i+1];
+            // Set next pointers
+            h1->next = c;
+            c->next = a;
+            a->next = h1;
+            // Set vertices
+            h1->vertex = c->vertex;
+            c->vertex = c->vertex;
+            a->vertex = a->vertex;
+            // Set faces
+            h1->face = new_face;
+            c->face = new_face;
+            a->face = new_face;
+            new_face->halfedge = h1;
+            // Set up the other halfedge of the diagonal
+            h2->next = b->next;
+            b->next = h2;
+            h2->vertex = a->vertex;
+            h2->face = f;
+            // Update the original face's halfedge if needed
+            if (f->halfedge == a) f->halfedge = h2;
+        }
+        // After triangulation, set the original face to a triangle
+        // (its halfedges are already rewired in the loop)
+    }
 }
 
 /*

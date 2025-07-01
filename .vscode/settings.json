@@ -30,6 +30,7 @@
         "list": "cpp",
         "vector": "cpp",
         "queue": "cpp",
-        "stack": "cpp"
+        "stack": "cpp",
+        "optional": "cpp"
     }
 }
