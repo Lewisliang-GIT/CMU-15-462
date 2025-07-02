@@ -12,72 +12,51 @@
  * Works on all valid meshes.
  */
 void Halfedge_Mesh::triangulate() {
-    //A2G1: triangulation
-    std::vector<FaceRef> faces_to_triangulate;
-    for (FaceRef f = faces.begin(); f != faces.end(); ++f) {
-        if (f->boundary) continue;
-        // Only triangulate faces with more than 3 sides
-        HalfedgeRef h = f->halfedge;
-        int count = 1;
-        HalfedgeRef temp = h->next;
-        while (temp != h) {
-            count++;
-            temp = temp->next;
-        }
-        if (count > 3) faces_to_triangulate.push_back(f);
-    }
+	// A2G1: triangulation
+    auto TriangulateFace = [&](FaceRef f) {
+        if (!f->boundary && f->degree() > 3) {
+            HalfedgeRef hOriginal = f->halfedge;
+            HalfedgeRef h = hOriginal;
+            HalfedgeRef hNext = h->next;
+			HalfedgeRef hPrev = h;
+			while (hPrev->next != h) {
+				hPrev = hPrev->next;
+			}
+            VertexRef v = h->vertex;
+            while (1) {
+                VertexRef vToConnect = hNext->next->vertex;
+                HalfedgeRef hOld = h;
 
-    for (FaceRef f : faces_to_triangulate) {
-        if (f->boundary) continue;
-        // Collect all halfedges of the face
-        std::vector<HalfedgeRef> face_halfedges;
-        HalfedgeRef h = f->halfedge;
-        do {
-            face_halfedges.push_back(h);
-            h = h->next;
-        } while (h != f->halfedge);
-        size_t n = face_halfedges.size();
-        // Triangulate by creating n-3 triangles
-        for (size_t i = 1; i < n - 1; ++i) {
-            // Create a new face
-            FaceRef new_face = emplace_face(false);
-            // Create a new edge and two new halfedges for the diagonal
-            EdgeRef diag_edge = emplace_edge(false);
-            HalfedgeRef h1 = emplace_halfedge();
-            HalfedgeRef h2 = emplace_halfedge();
-            // Set up the diagonal halfedges
-            h1->twin = h2;
-            h2->twin = h1;
-            h1->edge = h2->edge = diag_edge;
-            diag_edge->halfedge = h1;
-            // Set up the triangle's halfedges
-            HalfedgeRef a = face_halfedges[0];
-            HalfedgeRef b = face_halfedges[i];
-            HalfedgeRef c = face_halfedges[i+1];
-            // Set next pointers
-            h1->next = c;
-            c->next = a;
-            a->next = h1;
-            // Set vertices
-            h1->vertex = c->vertex;
-            c->vertex = c->vertex;
-            a->vertex = a->vertex;
-            // Set faces
-            h1->face = new_face;
-            c->face = new_face;
-            a->face = new_face;
-            new_face->halfedge = h1;
-            // Set up the other halfedge of the diagonal
-            h2->next = b->next;
-            b->next = h2;
-            h2->vertex = a->vertex;
-            h2->face = f;
-            // Update the original face's halfedge if needed
-            if (f->halfedge == a) f->halfedge = h2;
+                HalfedgeRef hNew = emplace_halfedge();
+                HalfedgeRef tNew = emplace_halfedge();
+                EdgeRef eNew = emplace_edge();
+                FaceRef fNew = emplace_face();
+
+                hNew->set_tnvef(tNew, hOld, vToConnect, eNew, fNew);
+                tNew->set_tnvef(hNew, hNext->next, v, eNew, hNext->next->face);
+
+                eNew->halfedge = hNew;
+                eNew->sharp = hOriginal->edge->sharp;
+                fNew->halfedge = hNew;
+
+                h->face = fNew;
+                hNext->face = fNew;
+                hNext->next->face->halfedge = tNew;
+                hNext->next = hNew;
+
+                h = tNew;
+                hNext = h->next;
+                if (hNext->next->next == hOriginal) {
+                    hPrev->next = tNew;
+                    return;
+                }
+            }
         }
-        // After triangulation, set the original face to a triangle
-        // (its halfedges are already rewired in the loop)
+    };
+    for (auto f: this->faces) {
+        TriangulateFace(f.halfedge->face);
     }
+    std::cout << describe();
 }
 
 /*
@@ -94,23 +73,33 @@ void Halfedge_Mesh::linear_subdivide() {
 
 	//A2G2: linear subdivision
 
-	// For every vertex, assign its current position to vertex_positions[v]:
-
-	//(TODO)
+    // For every vertex, assign its current position to vertex_positions[v]:
+    for (auto v:this ->vertices) {
+		vertex_positions.emplace(v, v->pos);
+    }
 
     // For every edge, assign the midpoint of its adjacent vertices to edge_vertex_positions[e]:
-	// (you may wish to investigate the helper functions of Halfedge_Mesh::Edge)
-
-	//(TODO)
+    for (auto e:this ->edges) {
+        edge_vertex_positions.emplace(e, (e->halfedge()->vertex()->pos + e->halfedge()->twin()->vertex()->pos) / 2.0);
+    }
 
     // For every *non-boundary* face, assign the centroid (i.e., arithmetic mean) to face_vertex_positions[f]:
-	// (you may wish to investigate the helper functions of Halfedge_Mesh::Face)
+    for (auto f:this ->faces) {
+        if (!f->is_boundary()) {
+            Vec3 centroid = Vec3(); // Initialize to (0,0,0)
+            int count = 0;
+            HalfedgeRef h = f->halfedge();
+            do {
+                centroid += h->vertex()->pos;
+                count++;
+                h = h->next();
+            } while (h != f->halfedge());
+			face_vertex_positions.emplace(f, centroid / static_cast<float>(count));
+		}
+    }
 
-	//(TODO)
-
-
-	//use the helper function to actually perform the subdivision:
-	catmark_subdivide_helper(vertex_positions, edge_vertex_positions, face_vertex_positions);
+    //use the helper function to actually perform the subdivision:
+    catmark_subdivide_helper(vertex_positions, edge_vertex_positions, face_vertex_positions);
 }
 
 /*

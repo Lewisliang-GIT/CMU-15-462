@@ -31,6 +31,8 @@
         "vector": "cpp",
         "queue": "cpp",
         "stack": "cpp",
-        "optional": "cpp"
-    }
+        "optional": "cpp",
+        "variant": "cpp"
+    },
+    "C_Cpp.errorSquiggles": "disabled"
 }
