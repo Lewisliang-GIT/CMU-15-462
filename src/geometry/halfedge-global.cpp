@@ -73,30 +73,23 @@ void Halfedge_Mesh::linear_subdivide() {
 
 	//A2G2: linear subdivision
 
-    // For every vertex, assign its current position to vertex_positions[v]:
-    for (auto v:this ->vertices) {
-		vertex_positions.emplace(v, v->pos);
-    }
+    for(auto i = vertices.begin(); i != vertices.end(); i++) {
+		vertex_positions[i] = i->position;
+	}
 
     // For every edge, assign the midpoint of its adjacent vertices to edge_vertex_positions[e]:
-    for (auto e:this ->edges) {
-        edge_vertex_positions.emplace(e, (e->halfedge()->vertex()->pos + e->halfedge()->twin()->vertex()->pos) / 2.0);
-    }
+	// (you may wish to investigate the helper functions of Halfedge_Mesh::Edge)
+	for(auto i = edges.begin(); i != edges.end(); i++) {
+		edge_vertex_positions[i] = i->center();
+	}
 
     // For every *non-boundary* face, assign the centroid (i.e., arithmetic mean) to face_vertex_positions[f]:
-    for (auto f:this ->faces) {
-        if (!f->is_boundary()) {
-            Vec3 centroid = Vec3(); // Initialize to (0,0,0)
-            int count = 0;
-            HalfedgeRef h = f->halfedge();
-            do {
-                centroid += h->vertex()->pos;
-                count++;
-                h = h->next();
-            } while (h != f->halfedge());
-			face_vertex_positions.emplace(f, centroid / static_cast<float>(count));
+	// (you may wish to investigate the helper functions of Halfedge_Mesh::Face)
+	for(auto i = faces.begin(); i != faces.end(); i++) {
+		if (!i->boundary){
+			face_vertex_positions[i] = i->center();
 		}
-    }
+	}
 
     //use the helper function to actually perform the subdivision:
     catmark_subdivide_helper(vertex_positions, edge_vertex_positions, face_vertex_positions);
