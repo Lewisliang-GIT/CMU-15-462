@@ -56,7 +56,6 @@ void Halfedge_Mesh::triangulate() {
     for (auto f: this->faces) {
         TriangulateFace(f.halfedge->face);
     }
-    std::cout << describe();
 }
 
 /*
@@ -104,29 +103,49 @@ void Halfedge_Mesh::linear_subdivide() {
  * (NOTE: uses catmark_subdivide_helper for subdivision)
  */
 void Halfedge_Mesh::catmark_subdivide() {
-	std::unordered_map< VertexCRef, Vec3 > vertex_positions;
-	std::unordered_map< EdgeCRef, Vec3 > edge_vertex_positions;
-	std::unordered_map< FaceCRef, Vec3 > face_vertex_positions;
+    std::unordered_map< VertexCRef, Vec3 > vertex_positions;
+    std::unordered_map< EdgeCRef, Vec3 > edge_vertex_positions;
+    std::unordered_map< FaceCRef, Vec3 > face_vertex_positions;
+	// A2G3: Catmull-Clark subdivision
 
-	//A2G3: Catmull-Clark Subdivision
+    for (auto f = faces.begin(); f != faces.end(); ++f) {
+        if (!f->boundary) {
+            face_vertex_positions[f] = f->center();
+        }
+    }
 
-	// This routine should end up looking a lot like linear_subdivide
-	// above, with the exception that the positions are a bit trickier
-	// to compute.
+    for (auto e = edges.begin(); e != edges.end(); ++e) {
+        if (!e->on_boundary()) {
+	    	Vec3 fp1 = face_vertex_positions[e->halfedge->face];
+            Vec3 fp2 = face_vertex_positions[e->halfedge->twin->face];
+            edge_vertex_positions[e] = e->center()/2.0f + (fp1 + fp2) / 4.0f;
+        } else {
+            // Boundary edge: just the midpoint
+            edge_vertex_positions[e] = e->center();
+        }
+    }
 
-	//Overview of the rules:
-	// https://en.wikipedia.org/wiki/Catmull%E2%80%93Clark_subdivision_surface
+	for (VertexRef v = vertices.begin(); v != vertices.end(); ++v) {
+		if (v->on_boundary()) {
+			vertex_positions[v] = v->position * 0.75f + (v->halfedge->next->vertex->position + 
+                v->halfedge->twin->next->next->vertex->position) * 0.25f;
+            continue;
+		}
 
-	// Faces
-
-	// Edges
-
-	// Vertices
-
-	
-	//Now, use the provided helper function to actually perform the subdivision:
-	catmark_subdivide_helper(vertex_positions, edge_vertex_positions, face_vertex_positions);
-
+		int n = 0;
+		Vec3 Q,R=Vec3(0.0f,0.0f,0.0f);
+		HalfedgeRef h = v->halfedge;
+		do {
+			Q += face_vertex_positions[h->face]; // face point
+			R += h->edge->center(); // edge midpoint
+			++n;
+			h = h->twin->next;
+		} while (h != v->halfedge);
+		Q /= n;
+		R /= n;
+		vertex_positions[v] = (Q + 2.0f * R + (n - 3) * v->position) / n;
+	}
+    catmark_subdivide_helper(vertex_positions, edge_vertex_positions, face_vertex_positions);
 }
 
 /*

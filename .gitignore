@@ -236,6 +236,9 @@ SDL2.dll
 nest-libs/
 asst3_exr_archive
 handin*
+pkg/
+bin/
+
 CMakeLists.txt.user
 CMakeCache.txt
 CMakeFiles
