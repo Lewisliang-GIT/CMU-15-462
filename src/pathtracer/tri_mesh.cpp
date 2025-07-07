@@ -21,28 +21,51 @@ BBox Triangle::bbox() const {
 
 Trace Triangle::hit(const Ray& ray) const {
 	//A3T2
-	
-	// Each vertex contains a postion and surface normal
-    Tri_Mesh_Vert v_0 = vertex_list[v0];
-    Tri_Mesh_Vert v_1 = vertex_list[v1];
-    Tri_Mesh_Vert v_2 = vertex_list[v2];
-    (void)v_0;
-    (void)v_1;
-    (void)v_2;
+	// Each vertex contains a position and surface normal
+	Tri_Mesh_Vert v_0 = vertex_list[v0];
+	Tri_Mesh_Vert v_1 = vertex_list[v1];
+	Tri_Mesh_Vert v_2 = vertex_list[v2];
 
-    // TODO (PathTracer): Task 2
-    // Intersect the ray with the triangle defined by the three vertices.
+	// Möller–Trumbore intersection algorithm
+	Vec3 p0 = v_0.position;
+	Vec3 p1 = v_1.position;
+	Vec3 p2 = v_2.position;
 
-    Trace ret;
-    ret.origin = ray.point;
-    ret.hit = false;       // was there an intersection?
-    ret.distance = 0.0f;   // at what distance did the intersection occur?
-    ret.position = Vec3{}; // where was the intersection?
-    ret.normal = Vec3{};   // what was the surface normal at the intersection?
-                           // (this should be interpolated between the three vertex normals)
-	ret.uv = Vec2{};	   // What was the uv associated with the point of intersection?
-						   // (this should be interpolated between the three vertex uvs)
-    return ret;
+	Vec3 edge1 = p1 - p0;
+	Vec3 edge2 = p2 - p0;
+	Vec3 h = cross(ray.dir, edge2);
+	float a = dot(edge1, h);
+
+	Trace ret;
+	ret.origin = ray.point;
+	ret.hit = false;
+
+	// If a is close to 0, ray is parallel to triangle
+	if (std::abs(a) < 1e-8f) return ret;
+
+	float f = 1.0f / a;
+	Vec3 s = ray.point - p0;
+	float u = f * dot(s, h);
+	if (u < 0.0f || u > 1.0f) return ret;
+
+	Vec3 q = cross(s, edge1);
+	float v = f * dot(ray.dir, q);
+	if (v < 0.0f || u + v > 1.0f) return ret;
+
+	float t = f * dot(edge2, q);
+	if (t < ray.dist_bounds.x || t > ray.dist_bounds.y) return ret;
+
+	// Intersection found
+	ret.hit = true;
+	ret.distance = t;
+	ret.position = ray.point + t * ray.dir;
+
+	// Interpolate normal and uv using barycentric coordinates
+	float w = 1.0f - u - v;
+	ret.normal = (w * v_0.normal + u * v_1.normal + v * v_2.normal).unit();
+	ret.uv = w * v_0.uv + u * v_1.uv + v * v_2.uv;
+
+	return ret;
 }
 
 Triangle::Triangle(Tri_Mesh_Vert* verts, uint32_t v0, uint32_t v1, uint32_t v2)

@@ -19,25 +19,44 @@ BBox Sphere::bbox() const {
 }
 
 PT::Trace Sphere::hit(Ray ray) const {
-	//A3T2 - sphere hit
+	//A3T2
+	// Sphere center at origin, radius = this->radius
+	Vec3 oc = ray.point; // Ray origin relative to sphere center (origin)
+	Vec3 dir = ray.dir;
 
-    // TODO (PathTracer): Task 2
-    // Intersect this ray with a sphere of radius Sphere::radius centered at the origin.
+	float a = dot(dir, dir);
+	float b = 2.0f * dot(oc, dir);
+	float c = dot(oc, oc) - radius * radius;
 
-    // If the ray intersects the sphere twice, ret should
-    // represent the first intersection, but remember to respect
-    // ray.dist_bounds! For example, if there are two intersections,
-    // but only the _later_ one is within ray.dist_bounds, you should
-    // return that one!
+	float discriminant = b * b - 4.0f * a * c;
 
-    PT::Trace ret;
-    ret.origin = ray.point;
-    ret.hit = false;       // was there an intersection?
-    ret.distance = 0.0f;   // at what distance did the intersection occur?
-    ret.position = Vec3{}; // where was the intersection?
-    ret.normal = Vec3{};   // what was the surface normal at the intersection?
-	ret.uv = Vec2{}; 	   // what was the uv coordinates at the intersection? (you may find Sphere::uv to be useful)
-    return ret;
+	PT::Trace ret;
+	ret.origin = ray.point;
+	ret.hit = false;
+	ret.distance = 0.0f;
+	ret.position = Vec3{};
+	ret.normal = Vec3{};
+	ret.uv = Vec2{};
+
+	if (discriminant < 0.0f) return ret;
+
+	float sqrt_disc = std::sqrt(discriminant);
+	float t1 = (-b - sqrt_disc) / (2.0f * a);
+	float t2 = (-b + sqrt_disc) / (2.0f * a);
+
+	// Find the smallest t in [ray.dist_bounds.x, ray.dist_bounds.y]
+	float t = std::numeric_limits<float>::max();
+	if (t1 >= ray.dist_bounds.x && t1 <= ray.dist_bounds.y) t = t1;
+	else if (t2 >= ray.dist_bounds.x && t2 <= ray.dist_bounds.y) t = t2;
+	else return ret;
+
+	ret.hit = true;
+	ret.distance = t;
+	ret.position = ray.point + t * ray.dir;
+	ret.normal = (ret.position / radius).normalize(); // correct normal for sphere of radius
+	ret.uv = uv(ret.normal);
+
+	return ret;
 }
 
 Vec3 Sphere::sample(RNG &rng, Vec3 from) const {
