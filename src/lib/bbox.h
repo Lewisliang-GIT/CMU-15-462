@@ -79,14 +79,39 @@ struct BBox {
 	}
 
 	bool hit(const Ray& ray, Vec2& times) const {
-		//A3T3 - bbox hit
+		// Slab method for ray-box intersection
+		float tmin = (min.x - ray.point.x) / ray.dir.x;
+		float tmax = (max.x - ray.point.x) / ray.dir.x;
+		if (tmin > tmax) std::swap(tmin, tmax);
 
-		// Implement ray - bounding box intersection test
-		// If the ray intersected the bounding box within the range given by
-		// [times.x,times.y], update times with the new intersection times.
-		// This means at least one of tmin and tmax must be within the range
+		float tymin = (min.y - ray.point.y) / ray.dir.y;
+		float tymax = (max.y - ray.point.y) / ray.dir.y;
+		if (tymin > tymax) std::swap(tymin, tymax);
 
-		return false;
+		if ((tmin > tymax) || (tymin > tmax))
+			return false;
+
+		if (tymin > tmin) tmin = tymin;
+		if (tymax < tmax) tmax = tymax;
+
+		float tzmin = (min.z - ray.point.z) / ray.dir.z;
+		float tzmax = (max.z - ray.point.z) / ray.dir.z;
+		if (tzmin > tzmax) std::swap(tzmin, tzmax);
+
+		if ((tmin > tzmax) || (tzmin > tmax))
+			return false;
+
+		if (tzmin > tmin) tmin = tzmin;
+		if (tzmax < tmax) tmax = tzmax;
+
+		// Check if intersection is within the given range
+		if (tmax < times.x || tmin > times.y)
+			return false;
+
+		times.x = std::max(tmin, times.x);
+		times.y = std::min(tmax, times.y);
+
+		return times.x <= times.y && tmax >= 0.0f;
 	}
 
 	/// Get the eight corner points of the bounding box

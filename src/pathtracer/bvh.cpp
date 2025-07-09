@@ -26,33 +26,214 @@ void BVH<Primitive>::build(std::vector<Primitive>&& prims, size_t max_leaf_size)
 	//A3T3 - build a bvh
 
 	// Keep these
-    nodes.clear();
-    primitives = std::move(prims);
+	nodes.clear();
+	primitives = std::move(prims);
 
-    // Construct a BVH from the given vector of primitives and maximum leaf
+	// Construct a BVH from the given vector of primitives and maximum leaf
     // size configuration.
 
-	//TODO
+	if (primitives.empty()) {
+		root_idx = 0;
+		return;
+	}
 
+	struct BuildEntry {
+		size_t start, range, parent, child_idx;
+	};
+
+	// Compute bbox of a range of primitives
+	auto compute_bbox = [&](size_t start, size_t range) {
+		BBox box = primitives[start].bbox();
+		for (size_t i = start + 1; i < start + range; i++) {
+			box.enclose(primitives[i].bbox());
+		}
+		return box;
+	};
+
+	// Compute centroid bbox of a range of primitives
+	auto compute_centroid_bbox = [&](size_t start, size_t range) {
+		BBox box_c=primitives[start].bbox();
+		for (size_t i = start + 1; i < start + range; i++) {
+			box_c.enclose(primitives[i].bbox().center());
+		}
+		return box_c;
+	};
+
+	struct NodeBuild {
+		size_t start, range;
+		size_t parent, child_idx;
+	};
+
+	std::stack<NodeBuild> stack;
+	root_idx = 0;
+	stack.push({0, primitives.size(), size_t(-1), 0});
+
+	while (!stack.empty()) {
+		NodeBuild entry = stack.top();
+		stack.pop();
+
+		size_t start = entry.start;
+		size_t range = entry.range;
+
+		BBox node_bbox = compute_bbox(start, range);
+
+		// Leaf node
+		if (range <= max_leaf_size) {
+			size_t node_idx = new_node(node_bbox, start, range, nodes.size(), nodes.size());
+			if (entry.parent != size_t(-1)) {
+				if (entry.child_idx == 0)
+					nodes[entry.parent].l = node_idx;
+				else
+					nodes[entry.parent].r = node_idx;
+			} else {
+				root_idx = node_idx;
+			}
+			continue;
+		}
+
+		// Compute centroid bbox and choose split axis
+		BBox centroid_bbox = compute_centroid_bbox(start, range);
+		Vec3 extent = centroid_bbox.max - centroid_bbox.min;
+		int axis = 0;
+		if (extent.y > extent.x && extent.y > extent.z) axis = 1;
+		else if (extent.z > extent.x && extent.z > extent.y) axis = 2;
+
+		// If all centroids are the same, make a leaf
+		if (extent[axis] < 1e-6f) {
+			size_t node_idx = new_node(node_bbox, start, range, nodes.size(), nodes.size());
+			if (entry.parent != size_t(-1)) {
+				if (entry.child_idx == 0)
+					nodes[entry.parent].l = node_idx;
+				else
+					nodes[entry.parent].r = node_idx;
+			} else {
+				root_idx = node_idx;
+			}
+			continue;
+		}
+
+		// Surface Area Heuristic (SAH) split
+		const int n_buckets = 12;
+		struct BucketInfo {
+			BBox bbox;
+			size_t count = 0;
+		};
+		BucketInfo buckets[n_buckets];
+
+		// Assign primitives to buckets
+		for (size_t i = start; i < start + range; i++) {
+			Vec3 centroid = primitives[i].bbox().center();
+			float offset = (centroid[axis] - centroid_bbox.min[axis]) / (extent[axis]);
+			int b = int(n_buckets * offset);
+			if (b == n_buckets) b = n_buckets - 1;
+			b = std::clamp(b, 0, n_buckets - 1);
+			buckets[b].count++;
+			buckets[b].bbox.enclose(primitives[i].bbox());
+		}
+
+		// Test all possible splits
+		float min_cost = std::numeric_limits<float>::infinity();
+		int min_split = -1;
+		float total_sa = node_bbox.surface_area();
+
+		for (int i = 1; i < n_buckets; i++) {
+			BBox b0, b1;
+			size_t c0 = 0, c1 = 0;
+			for (int j = 0; j < i; j++) {
+				if (buckets[j].count) {
+					b0.enclose(buckets[j].bbox);
+					c0 += buckets[j].count;
+				}
+			}
+			for (int j = i; j < n_buckets; j++) {
+				if (buckets[j].count) {
+					b1.enclose(buckets[j].bbox);
+					c1 += buckets[j].count;
+				}
+			}
+			if (c0 == 0 || c1 == 0) continue;
+			float cost = 0.125f + (b0.surface_area() * c0 + b1.surface_area() * c1) / total_sa;
+			if (cost < min_cost) {
+				min_cost = cost;
+				min_split = i;
+			}
+		}
+
+		// If no good split, make a leaf
+		if (min_split == -1) {
+			size_t node_idx = new_node(node_bbox, start, range, nodes.size(), nodes.size());
+			if (entry.parent != size_t(-1)) {
+				if (entry.child_idx == 0)
+					nodes[entry.parent].l = node_idx;
+				else
+					nodes[entry.parent].r = node_idx;
+			} else {
+				root_idx = node_idx;
+			}
+			continue;
+		}
+
+		// Partition primitives
+		auto mid_iter = std::partition(
+			primitives.begin() + start, primitives.begin() + start + range,
+			[&](const Primitive& prim) {
+				Vec3 centroid = prim.bbox().center();
+				float offset = (centroid[axis] - centroid_bbox.min[axis]) / (extent[axis]);
+				int b = int(n_buckets * offset);
+				if (b == n_buckets) b = n_buckets - 1;
+				b = std::clamp(b, 0, n_buckets - 1);
+				return b < min_split;
+			}
+		);
+		size_t mid = std::distance(primitives.begin(), mid_iter);
+
+		// Create parent node
+		size_t node_idx = new_node(node_bbox, start, range, 0, 0);
+		if (entry.parent != size_t(-1)) {
+			if (entry.child_idx == 0)
+				nodes[entry.parent].l = node_idx;
+			else
+				nodes[entry.parent].r = node_idx;
+		} else {
+			root_idx = node_idx;
+		}
+
+		// Push children to stack
+		stack.push({mid, start + range - mid, node_idx, 1});
+		stack.push({start, mid - start, node_idx, 0});
+	}
 }
 
 template<typename Primitive> Trace BVH<Primitive>::hit(const Ray& ray) const {
-	//A3T3 - traverse your BVH
+	// Efficient BVH traversal using an explicit stack
 
-    // Implement ray - BVH intersection test. A ray intersects
-    // with a BVH aggregate if and only if it intersects a primitive in
-    // the BVH that is not an aggregate.
+	if (nodes.empty()) return {};
 
-    // The starter code simply iterates through all the primitives.
-    // Again, remember you can use hit() on any Primitive value.
+	Trace closest;
+	Vec2 times(ray.dist_bounds);
 
-	//TODO: replace this code with a more efficient traversal:
-    Trace ret;
-    for(const Primitive& prim : primitives) {
-        Trace hit = prim.hit(ray);
-        ret = Trace::min(ret, hit);
-    }
-    return ret;
+	std::stack<size_t> stack;
+	stack.push(root_idx);
+
+	while (!stack.empty()) {
+		size_t idx = stack.top();
+		stack.pop();
+
+		const Node& node = nodes[idx];
+		Vec2 node_times = times;
+		if (!node.bbox.hit(ray, node_times)) continue;
+
+		if (node.is_leaf()) {
+			for (size_t i = node.start; i < node.start + node.size; i++) {
+				Trace hit = primitives[i].hit(ray);
+				closest = Trace::min(closest, hit);
+			}
+		} else {
+			stack.push(node.l);
+			stack.push(node.r);
+		}
+	}
+	return closest;
 }
 
 template<typename Primitive>

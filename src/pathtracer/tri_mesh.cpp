@@ -9,14 +9,22 @@ namespace PT {
 BBox Triangle::bbox() const {
 	//A3T2 / A3T3
 
-	// TODO (PathTracer): Task 2 or 3
-    // Compute the bounding box of the triangle.
+	// Compute the bounding box of the triangle.
+	const Vec3& p0 = vertex_list[v0].position;
+	const Vec3& p1 = vertex_list[v1].position;
+	const Vec3& p2 = vertex_list[v2].position;
 
-    // Beware of flat/zero-volume boxes! You may need to
-    // account for that here, or later on in BBox::hit.
+	BBox box;
+	box.enclose(p0);
+	box.enclose(p1);
+	box.enclose(p2);
 
-    BBox box;
-    return box;
+	// Expand the box slightly to avoid zero-volume boxes
+	const float eps = 1e-4f;
+	box.min -= Vec3(eps, eps, eps);
+	box.max += Vec3(eps, eps, eps);
+
+	return box;
 }
 
 Trace Triangle::hit(const Ray& ray) const {
